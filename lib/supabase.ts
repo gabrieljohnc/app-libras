@@ -29,11 +29,3 @@ export type Resultado = {
   fontes: string[];
   total: number;
 };
-
-export const NOMES_FONTES: Record<string, string> = {
-  INES: "INES",
-  "RedeSurdos-UFC": "Rede Surdos (UFC)",
-  SpreadTheSign: "Spread the Sign",
-  "LibrasAcademica-UFF": "Libras Acadêmica (UFF)",
-  UFV: "UFV",
-};

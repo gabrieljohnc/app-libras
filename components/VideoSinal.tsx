@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { NOMES_FONTES, type Sinal } from "@/lib/supabase";
+import type { Sinal } from "@/lib/supabase";
+import { NOMES_FONTES } from "@/lib/util";
 
 const VELOCIDADES = [0.5, 1];
 
