@@ -21,7 +21,7 @@ export default function Busca({ inicial = "", compacta = false }: { inicial?: st
         type="search"
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        placeholder="Digite uma palavra, ex.: obrigado"
+        placeholder="Digite uma palavra"
         aria-label="Palavra para buscar"
         autoComplete="off"
       />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Busca from "@/components/Busca";
-import { linkSinal } from "@/lib/supabase";
+import { linkSinal } from "@/lib/util";
 
 const SUGESTOES = ["oi", "obrigado", "bom dia", "por favor", "desculpa", "amigo", "família", "escola", "eu te amo"];
 const LETRAS = "abcdefghijklmnopqrstuvwxyz".split("");

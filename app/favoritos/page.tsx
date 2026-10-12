@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { lerFavoritos, type Favorito } from "@/components/Favoritar";
-import { linkSinal } from "@/lib/supabase";
+import { linkSinal } from "@/lib/util";
 
 export default function Favoritos() {
   const [lista, setLista] = useState<Favorito[] | null>(null);

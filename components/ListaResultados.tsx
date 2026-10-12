@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { linkSinal, type Resultado } from "@/lib/supabase";
+import type { Resultado } from "@/lib/supabase";
+import { linkSinal } from "@/lib/util";
 
 export default function ListaResultados({ itens }: { itens: Resultado[] }) {
   return (

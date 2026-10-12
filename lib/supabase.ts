@@ -37,17 +37,3 @@ export const NOMES_FONTES: Record<string, string> = {
   "LibrasAcademica-UFF": "Libras Acadêmica (UFF)",
   UFV: "UFV",
 };
-
-export function normalizar(texto: string) {
-  return texto
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/@/g, "o")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function linkSinal(palavraNormalizada: string) {
-  return `/sinal/${encodeURIComponent(palavraNormalizada)}`;
-}
