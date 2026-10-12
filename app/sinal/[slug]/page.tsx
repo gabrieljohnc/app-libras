@@ -2,6 +2,9 @@ import Link from "next/link";
 import Favoritar from "@/components/Favoritar";
 import VideoSinal from "@/components/VideoSinal";
 import { supabase, type Sinal } from "@/lib/supabase";
+import modelo from "@/public/libras/rotulos.json";
+
+const RECONHECIVEIS = new Set<string>(modelo.rotulos);
 
 export const revalidate = 86400;
 
@@ -41,7 +44,14 @@ export default async function PaginaSinal({ params }: { params: Promise<{ slug: 
             {sinais.length} {sinais.length === 1 ? "vídeo" : "vídeos"}
           </span>
         </div>
-        <Favoritar slug={chave} palavra={palavra} />
+        <div className="controles">
+          {RECONHECIVEIS.has(chave) && (
+            <Link href={`/reconhecer?alvo=${encodeURIComponent(chave)}`} className="chip chip-claro">
+              Praticar na câmera
+            </Link>
+          )}
+          <Favoritar slug={chave} palavra={palavra} />
+        </div>
       </div>
       <div className="videos">
         {sinais.map((s) => (

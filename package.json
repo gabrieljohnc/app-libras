@@ -8,8 +8,10 @@
     "start": "next start"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "0.10.14",
     "@supabase/supabase-js": "2.117.3",
     "next": "15.5.27",
+    "onnxruntime-web": "1.20.1",
     "react": "19.1.9",
     "react-dom": "19.1.9"
   },
