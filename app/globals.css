@@ -180,3 +180,10 @@ a { color: inherit; text-decoration: none; }
 .camera-alvo.ok { background: #dcfce7; color: #166534; }
 .camera-exemplo { display: flex; gap: 8px; flex-wrap: wrap; }
 .camera-exemplo input { flex: 1; min-width: 140px; padding: 10px 14px; border-radius: 999px; border: 1.5px solid var(--roxo-200); font: inherit; }
+.camera-abas { display: flex; gap: 4px; padding: 4px; background: var(--roxo-50); border-radius: 999px; margin-bottom: 16px; width: fit-content; }
+.camera-abas button { border: 0; background: transparent; padding: 8px 16px; border-radius: 999px; font: inherit; font-weight: 600; font-size: 14px; color: var(--roxo-700); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.camera-abas button[aria-selected="true"] { background: var(--branco); box-shadow: var(--sombra); }
+.camera-painel button.chip { font: inherit; font-size: 14px; cursor: pointer; }
+.chip-feito { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.calibrar-video { width: 100%; max-width: 320px; border-radius: 12px; background: var(--roxo-900); aspect-ratio: 4 / 3; object-fit: contain; display: block; margin: 8px 0; }
+label.botao { display: inline-flex; align-items: center; }

@@ -25,6 +25,8 @@ export type Opcoes = {
   onQuadro?: (pose: { x: number; y: number }[] | null, maos: Mao[]) => void;
   /** Força CPU ou GPU no MediaPipe (padrão: tenta GPU e cai para CPU). */
   delegate?: "GPU" | "CPU";
+  /** false = todos os sinais do modelo concorrem, não só o vocabulário básico (padrão: só o básico). */
+  somenteBasico?: boolean;
   /** Probabilidade mínima para anunciar um sinal como final. */
   confiancaMinima?: number;
 };
@@ -34,7 +36,13 @@ const PARADO_FIM_S = 0.5; // mãos paradas (ou fora da imagem) por esse tempo en
 const MAX_SINAL_S = 6;
 const MIN_SINAL_S = 0.4;
 const INTERVALO_PARCIAL_S = 0.25;
-const CHAVE_EXEMPLOS = "libras-exemplos-v1";
+// os embeddings mudam a cada modelo treinado, então os exemplos ficam guardados por versão
+const CHAVE_EXEMPLOS = "libras-exemplos";
+// mistura com os exemplos da pessoa (ver pontuar)
+const PESO_KNN = 0.8;
+const SIM_MINIMA = 0.3; // sinais diferentes ficam perto de 0; o mesmo sinal de outra pessoa, perto de 0,65
+const SIM_FORTE = 0.7;
+const TEMPERATURA_KNN = 15;
 const MEDIAPIPE_PADRAO = {
   wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
   maos: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
@@ -46,6 +54,9 @@ export class ReconhecedorLibras {
   private pose!: PoseLandmarker;
   private sessao!: ort.InferenceSession;
   private rotulos: string[] = [];
+  private basico: string[] = [];
+  private ativos: number[] = []; // índices dos rótulos que concorrem (o vocabulário básico, se houver)
+  private versaoModelo = "";
   private video: HTMLVideoElement | null = null;
   private rodando = false;
   private ref: Referencia | null = null;
@@ -60,7 +71,7 @@ export class ReconhecedorLibras {
   private ultimoParcial = 0;
   private inferindo = false;
   private exemplos: { termo: string; emb: number[] }[] = [];
-  private gravando: { termo: string; ok: () => void } | null = null;
+  private gravando: { termo: string; ok: () => void; desde: number } | null = null;
 
   constructor(private opcoes: Opcoes = {}) {}
 
@@ -91,8 +102,12 @@ export class ReconhecedorLibras {
     if (rotulos.T !== T || rotulos.n_features !== N_FEATURES) {
       throw new Error("Modelo e features.ts estão em versões diferentes");
     }
+    this.versaoModelo = rotulos.versao ?? "1";
+    this.basico = rotulos.basico ?? [];
+    const usar = this.opcoes.somenteBasico === false || this.basico.length === 0 ? this.rotulos : this.basico;
+    this.ativos = usar.map((t) => this.rotulos.indexOf(t)).filter((k) => k >= 0);
     try {
-      this.exemplos = JSON.parse(localStorage.getItem(CHAVE_EXEMPLOS) ?? "[]");
+      this.exemplos = JSON.parse(localStorage.getItem(this.chaveExemplos) ?? "[]");
     } catch {
       this.exemplos = [];
     }
@@ -113,8 +128,18 @@ export class ReconhecedorLibras {
     this.emSinal = false;
   }
 
+  /** Sinais que podem aparecer como palpite. */
   get vocabulario() {
-    return [...this.rotulos];
+    return [...new Set([...this.ativos.map((k) => this.rotulos[k]), ...this.exemplos.map((e) => e.termo)])].sort();
+  }
+
+  /** Sinais básicos, na ordem sugerida para calibrar. */
+  get sinaisBasicos() {
+    return [...this.basico];
+  }
+
+  private get chaveExemplos() {
+    return `${CHAVE_EXEMPLOS}-${this.versaoModelo}`;
   }
 
   private agendar() {
@@ -195,29 +220,15 @@ export class ReconhecedorLibras {
     this.inferindo = true;
     try {
       const { logits, emb } = await this.inferir(seq, ts);
-      if (final && this.gravando) {
+      // só vale como exemplo um sinal que começou depois do pedido de gravação
+      if (final && this.gravando && ts[ts.length - 1] - duracaoS >= this.gravando.desde) {
         this.exemplos.push({ termo: this.gravando.termo, emb });
-        try {
-          localStorage.setItem(CHAVE_EXEMPLOS, JSON.stringify(this.exemplos));
-        } catch {
-          // sem armazenamento (aba anônima): o exemplo vale só nesta sessão
-        }
+        this.salvarExemplos();
         this.gravando.ok();
         this.gravando = null;
         return;
       }
-      const probs = softmax(logits);
-      // exemplos gravados pela própria pessoa reforçam os sinais dela (vizinho mais próximo)
-      for (const ex of this.exemplos) {
-        const k = this.rotulos.indexOf(ex.termo);
-        if (k < 0) continue;
-        const sim = ex.emb.reduce((s, v, i) => s + v * emb[i], 0);
-        if (sim > 0.75) probs[k] += (sim - 0.75) * 2;
-      }
-      const soma = probs.reduce((a, b) => a + b, 0);
-      const palpites = Array.from(probs, (p, k) => ({ termo: this.rotulos[k], prob: p / soma }))
-        .sort((a, b) => b.prob - a.prob)
-        .slice(0, 5);
+      const palpites = this.pontuar(logits, emb);
       const minimo = this.opcoes.confiancaMinima ?? 0.15;
       if (final && palpites[0].prob < minimo) return;
       this.opcoes.onResultado?.({ palpites, final, duracaoMs: duracaoS * 1000 });
@@ -227,22 +238,82 @@ export class ReconhecedorLibras {
   }
 
   /**
+   * Junta o modelo genérico com os exemplos gravados pela própria pessoa.
+   * O modelo só conhece os vídeos dos dicionários; os exemplos (vizinho mais próximo no embedding)
+   * pesam mais quanto mais parecido o sinal feito agora estiver de um deles, e valem também
+   * para sinais que o modelo não conhece.
+   */
+  private pontuar(logits: Float32Array, emb: number[]): Palpite[] {
+    const pontos = new Map<string, number>();
+    const modelo = softmax(Array.from(this.ativos, (k) => logits[k]));
+    this.ativos.forEach((k, i) => pontos.set(this.rotulos[k], modelo[i]));
+
+    const melhor = new Map<string, number>(); // maior similaridade por sinal
+    for (const ex of this.exemplos) {
+      const sim = ex.emb.reduce((s, v, i) => s + v * emb[i], 0);
+      melhor.set(ex.termo, Math.max(melhor.get(ex.termo) ?? -1, sim));
+    }
+    if (melhor.size > 0) {
+      const termos = [...melhor.keys()];
+      const knn = softmax(termos.map((t) => melhor.get(t)! * TEMPERATURA_KNN));
+      const simMax = Math.max(...melhor.values());
+      const peso = PESO_KNN * Math.min(Math.max((simMax - SIM_MINIMA) / (SIM_FORTE - SIM_MINIMA), 0), 1);
+      for (const [t, p] of pontos) pontos.set(t, p * (1 - peso));
+      termos.forEach((t, i) => pontos.set(t, (pontos.get(t) ?? 0) + peso * knn[i]));
+    }
+    return [...pontos]
+      .map(([termo, prob]) => ({ termo, prob }))
+      .sort((a, b) => b.prob - a.prob)
+      .slice(0, 5);
+  }
+
+  /**
    * Grava o próximo sinal feito na câmera como exemplo de `termo` e guarda no aparelho.
    * Com 2 ou 3 exemplos por sinal a precisão para aquela pessoa sobe bastante.
    */
   gravarExemplo(termo: string): Promise<void> {
-    return new Promise((ok) => (this.gravando = { termo, ok }));
+    return new Promise((ok) => (this.gravando = { termo, ok, desde: performance.now() / 1000 }));
   }
 
-  apagarExemplos() {
-    this.exemplos = [];
+  /** Cancela uma gravação pedida e ainda não feita. */
+  cancelarGravacao() {
+    this.gravando = null;
+  }
+
+  /** Quantos exemplos a pessoa já gravou de cada sinal. */
+  get exemplosPorSinal(): Record<string, number> {
+    const n: Record<string, number> = {};
+    for (const ex of this.exemplos) n[ex.termo] = (n[ex.termo] ?? 0) + 1;
+    return n;
+  }
+
+  apagarExemplos(termo?: string) {
+    this.exemplos = termo ? this.exemplos.filter((e) => e.termo !== termo) : [];
+    this.salvarExemplos();
+  }
+
+  /** Exemplos em JSON, para guardar num arquivo ou levar para outro navegador. */
+  exportarExemplos() {
+    return JSON.stringify({ versao: this.versaoModelo, exemplos: this.exemplos });
+  }
+
+  importarExemplos(json: string) {
+    const dados = JSON.parse(json);
+    if (dados.versao !== this.versaoModelo) throw new Error("Esses exemplos são de outra versão do modelo.");
+    this.exemplos = dados.exemplos;
+    this.salvarExemplos();
+  }
+
+  private salvarExemplos() {
     try {
-      localStorage.removeItem(CHAVE_EXEMPLOS);
-    } catch {}
+      localStorage.setItem(this.chaveExemplos, JSON.stringify(this.exemplos));
+    } catch {
+      // sem armazenamento (aba anônima): os exemplos valem só nesta sessão
+    }
   }
 }
 
-function softmax(x: Float32Array) {
+function softmax(x: number[]) {
   const m = Math.max(...x);
   const e = Array.from(x, (v) => Math.exp(v - m));
   const s = e.reduce((a, b) => a + b, 0);

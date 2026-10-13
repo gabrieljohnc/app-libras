@@ -21,6 +21,6 @@ npm run dev
 
 ## Reconhecimento pela câmera
 
-A página `/reconhecer` liga a webcam e tenta adivinhar o sinal ao vivo, tudo no navegador: o MediaPipe acha os pontos das mãos e do corpo, e um modelo ONNX de 2 MB (`public/libras/modelo.onnx`, 715 sinais) classifica o movimento. Nenhum vídeo sai do aparelho. Em `lib/reconhecimento/` ficam as features e a classe `ReconhecedorLibras`; o treino e a explicação de como refazer o modelo estão na pasta `reconhecimento/` do projeto.
+A página `/reconhecer` liga a webcam e tenta adivinhar o sinal ao vivo, tudo no navegador: o MediaPipe acha os pontos das mãos e do corpo, e um modelo ONNX de 2 MB (`public/libras/modelo.onnx`) classifica o movimento entre 196 sinais básicos. Na aba Calibrar, a pessoa faz cada sinal 3 vezes e o app passa a reconhecer o jeito dela. Nenhum vídeo sai do aparelho. Em `lib/reconhecimento/` ficam as features e a classe `ReconhecedorLibras`; o treino e a explicação de como refazer o modelo estão na pasta `reconhecimento/` do projeto.
 
-Precisão medida em vídeos de pessoas que o modelo não viu: 19% de primeira e 31% entre os 5 palpites. Gravar 2 ou 3 exemplos seus de um sinal (botão "Gravar") melhora o reconhecimento para você.
+Sem calibração, a precisão medida em vídeos de pessoas que o modelo não viu é de 33% de primeira e 53% entre os 5 palpites.

@@ -4,7 +4,7 @@ import VideoSinal from "@/components/VideoSinal";
 import { supabase, type Sinal } from "@/lib/supabase";
 import modelo from "@/public/libras/rotulos.json";
 
-const RECONHECIVEIS = new Set<string>(modelo.rotulos);
+const RECONHECIVEIS = new Set<string>(modelo.basico);
 
 export const revalidate = 86400;
 
