@@ -18,3 +18,9 @@ npm run dev
 ## Dados
 
 `public/dados/sinais.json` e `public/dados/fontes.json` têm o catálogo completo (13.410 vídeos, 8.830 termos). Os vídeos continuam nas fontes de origem; o banco guarda só os links. `scripts/` tem o esquema SQLite e o script que montou o catálogo.
+
+## Reconhecimento pela câmera
+
+A página `/reconhecer` liga a webcam e tenta adivinhar o sinal ao vivo, tudo no navegador: o MediaPipe acha os pontos das mãos e do corpo, e um modelo ONNX de 2 MB (`public/libras/modelo.onnx`) classifica o movimento entre 196 sinais básicos. Na aba Calibrar, a pessoa faz cada sinal 3 vezes e o app passa a reconhecer o jeito dela. Nenhum vídeo sai do aparelho. Em `lib/reconhecimento/` ficam as features e a classe `ReconhecedorLibras`; o treino e a explicação de como refazer o modelo estão na pasta `reconhecimento/` do projeto.
+
+Sem calibração, a precisão medida em vídeos de pessoas que o modelo não viu é de 33% de primeira e 53% entre os 5 palpites.
